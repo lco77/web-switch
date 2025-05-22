@@ -1,14 +1,15 @@
-from flask import Flask, render_template, redirect, url_for, session, request
-from flask_wtf import FlaskForm, CSRFProtect
-from wtforms import StringField, PasswordField, SubmitField, BooleanField
-from wtforms.validators import DataRequired
-from ldap3 import Server, Connection, ALL, SUBTREE, Tls
-from functools import wraps
-from dataclasses import dataclass, field
 import time
 import os
 import json
 import ssl
+
+from flask import Flask, render_template, redirect, url_for, session
+from flask_wtf import FlaskForm, CSRFProtect
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired
+from ldap3 import Server, Connection, ALL, SUBTREE, Tls
+from functools import wraps
+from dataclasses import dataclass, field
 
 app = Flask(__name__)
 
@@ -17,10 +18,10 @@ if os.environ['FLASK_ENV'] == 'development':
 else:
     app.secret_key = os.urandom(24).hex()
 
-
+# Enable CSRF protection
 csrf = CSRFProtect(app)
 
-# Load Config from env
+# Read config from environment variables
 LDAP_HOST = f"ldaps://{os.environ.get("LDAP_HOST")}"
 LDAP_BASE_DN = os.environ.get("LDAP_BASE_DN")
 LDAP_USERNAME = os.environ.get("LDAP_USERNAME")
@@ -45,7 +46,6 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Login')
 
 # Refresh session timeout at every request
-# or redirect to login form
 @app.before_request
 def refresh_session():
     if os.environ['FLASK_ENV'] == 'development':
@@ -116,8 +116,8 @@ def ldap_login(username: str, password: str) -> User:
     user_roles = set()
     for role_name,role_groups in ROLES.items():
         for role_group in role_groups:
-            for group in member_of:
-                if group.startswith(role_group):
+            for user_group in member_of:
+                if user_group.startswith(role_group):
                     user_roles.add(role_name)
 
 
@@ -130,6 +130,7 @@ def ldap_login(username: str, password: str) -> User:
         authenticated = True
     )
 
+# Login route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
@@ -157,11 +158,13 @@ def login():
     
     return render_template("login.html", form=form, error=error)
 
+# Logout route
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# Home route
 @app.route('/home')
 @login_required
 def home():
